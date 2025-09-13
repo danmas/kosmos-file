@@ -1,0 +1,52 @@
+# Конфигурация синхронизации файлов
+
+# Базовые директории (можно переопределить через переменные окружения)
+baseDirs:
+  dir1: ${BASE_DIR_1}
+  dir2: ${BASE_DIR_2}
+  dir3: ${BASE_DIR_3}
+
+# Настройки chokidar
+watchOptions:
+  # Игнорировать скрытые файлы и директории
+  ignored: 
+    - "**/.git/**"
+    - "**/node_modules/**"
+    - "**/.DS_Store"
+  # Ждать завершения записи файла
+  awaitWriteFinish:
+    stabilityThreshold: ${STABILITY_THRESHOLD}
+    pollInterval: ${POLL_INTERVAL}
+  # Использовать режим опроса (полезно для сетевых дисков)
+  usePolling: ${USE_POLLING}
+  # Не генерировать события при запуске для существующих файлов
+  ignoreInitial: true
+  # Не завершать процесс пока активно наблюдение
+  persistent: true
+
+# Пары файлов для синхронизации
+# Формат: каждая пара содержит source и target с указанием базовой директории и пути к файлу
+syncPairs:
+  - name: "Документ 1" # Опциональное имя для логирования
+    source:
+      baseDir: dir1
+      path: file1.md
+    target:
+      baseDir: dir2
+      path: file2.md
+  
+  - name: "Документ 2"
+    source:
+      baseDir: dir1
+      path: file11.md
+    target:
+      baseDir: dir3
+      path: file11.md
+  
+  - name: "Конфигурационный файл"
+    source:
+      baseDir: dir1
+      path: config/settings.json
+    target:
+      baseDir: dir3
+      path: settings/app-config.json
