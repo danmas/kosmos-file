@@ -5,6 +5,7 @@ const path = require('path');
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const fs = require('fs-extra');
 
 // Порт для веб-интерфейса
 const PORT = process.env.PORT || 3003;
@@ -20,8 +21,27 @@ let configPath = null;
 
 // Проверяем, был ли передан путь к конфигурационному файлу
 if (args.length > 0) {
+  // Проверяем, не запрошена ли справка
+  if (args[0] === '--help' || args[0] === '-h') {
+    console.log('Использование: node server.js [путь_к_конфигурации]');
+    console.log('');
+    console.log('Опции:');
+    console.log('  [путь_к_конфигурации]  Путь к YAML файлу конфигурации');
+    console.log('  --help, -h             Показать эту справку');
+    console.log('');
+    console.log('По умолчанию используется путь из переменной окружения CONFIG_PATH или ./config.yaml');
+    process.exit(0);
+  }
+  
   configPath = path.resolve(args[0]);
   logger.info(`Используется указанный конфигурационный файл: ${configPath}`);
+  
+  // Проверяем существование файла
+  if (!fs.existsSync(configPath)) {
+    logger.error(`Указанный конфигурационный файл не найден: ${configPath}`);
+    logger.info('Используйте команду с аргументом --help для получения справки');
+    process.exit(1);
+  }
 }
 
 // Загружаем конфигурацию

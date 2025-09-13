@@ -1,0 +1,9 @@
+{
+  "name": "test-file",
+  "version": "1.0.0",
+  "description": "Тестовый JSON файл для синхронизации",
+  "properties": {
+    "test": true,
+    "value": 42
+  }
+}

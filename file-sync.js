@@ -193,28 +193,42 @@ async function initialSync(config, pair) {
   const sourcePath = getFullPath(config, pair.source.baseDir, pair.source.path);
   const targetPath = getFullPath(config, pair.target.baseDir, pair.target.path);
   
+  logger.info(`[${pair.name || 'Файл'}] Начальная синхронизация: ${sourcePath} <-> ${targetPath}`);
+  
   try {
     const sourceExists = await fs.pathExists(sourcePath);
     const targetExists = await fs.pathExists(targetPath);
     
+    logger.info(`[${pair.name || 'Файл'}] Исходный файл существует: ${sourceExists}, целевой файл существует: ${targetExists}`);
+    
     if (sourceExists && !targetExists) {
       // Если исходный файл существует, а целевой нет - копируем исходный в целевой
+      logger.info(`[${pair.name || 'Файл'}] Копирование исходного файла в целевой`);
       await copyFile(sourcePath, targetPath);
     } else if (!sourceExists && targetExists) {
       // Если целевой файл существует, а исходный нет - копируем целевой в исходный
+      logger.info(`[${pair.name || 'Файл'}] Копирование целевого файла в исходный`);
       await copyFile(targetPath, sourcePath);
     } else if (sourceExists && targetExists) {
       // Если оба файла существуют - сравниваем время модификации и копируем более новый
       const sourceStats = await fs.stat(sourcePath);
       const targetStats = await fs.stat(targetPath);
       
+      logger.info(`[${pair.name || 'Файл'}] Оба файла существуют, сравнение времени модификации`);
+      
       if (sourceStats.mtimeMs > targetStats.mtimeMs) {
+        logger.info(`[${pair.name || 'Файл'}] Исходный файл новее, копируем в целевой`);
         await copyFile(sourcePath, targetPath);
       } else if (targetStats.mtimeMs > sourceStats.mtimeMs) {
+        logger.info(`[${pair.name || 'Файл'}] Целевой файл новее, копируем в исходный`);
         await copyFile(targetPath, sourcePath);
+      } else {
+        logger.info(`[${pair.name || 'Файл'}] Файлы одинаковые по времени модификации, синхронизация не требуется`);
       }
+    } else {
+      // Если оба файла не существуют - ничего не делаем
+      logger.info(`[${pair.name || 'Файл'}] Оба файла не существуют, синхронизация не требуется`);
     }
-    // Если оба файла не существуют - ничего не делаем
   } catch (error) {
     logger.error(`Ошибка при начальной синхронизации ${pair.name || 'файлов'}: ${error.message}`);
   }
@@ -245,13 +259,20 @@ function startSync(config) {
   syncStatus.startTime = new Date();
   
   // Для каждой пары файлов
+  // Сначала выполняем начальную синхронизацию для всех пар
+  const initPromises = config.syncPairs.map(pair => initialSync(config, pair));
+  
+  // Затем настраиваем наблюдателей
   config.syncPairs.forEach(pair => {
-    // Выполняем начальную синхронизацию
-    initialSync(config, pair);
-    
-    // Настраиваем наблюдателей
     const pairWatchers = setupFileWatchers(config, pair);
     watchers.push(pairWatchers);
+  });
+  
+  // Запускаем все промисы инициализации
+  Promise.all(initPromises).then(() => {
+    logger.info('Начальная синхронизация завершена для всех пар файлов');
+  }).catch(error => {
+    logger.error(`Ошибка при выполнении начальной синхронизации: ${error.message}`);
   });
   
   // Сохраняем наблюдателей в статусе

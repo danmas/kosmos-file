@@ -1,0 +1,82 @@
+# Тестовая конфигурация синхронизации файлов
+
+# Базовые директории
+baseDirs:
+  dir1: C:/ERV/projects-ex/kosmos-file/tests/dir1
+  dir2: C:/ERV/projects-ex/kosmos-file/tests/dir2
+  dir3: C:/ERV/projects-ex/kosmos-file/tests/dir3
+
+# Настройки chokidar
+watchOptions:
+  # Игнорировать скрытые файлы и директории
+  ignored: 
+    - "**/.git/**"
+    - "**/node_modules/**"
+    - "**/.DS_Store"
+  # Ждать завершения записи файла
+  awaitWriteFinish:
+    stabilityThreshold: 1000
+    pollInterval: 100
+  # Использовать режим опроса (полезно для сетевых дисков)
+  usePolling: false
+  # Не генерировать события при запуске для существующих файлов
+  ignoreInitial: true
+  # Не завершать процесс пока активно наблюдение
+  persistent: true
+
+# Пары файлов для синхронизации
+# Тестируем все возможные варианты синхронизации
+syncPairs:
+  # Вариант 1: Простая синхронизация между двумя директориями с одинаковыми именами файлов
+  - name: "Простая синхронизация"
+    source:
+      baseDir: dir1
+      path: file1.md
+    target:
+      baseDir: dir2
+      path: file2.md
+
+  # Вариант 2: Синхронизация файла из одной директории в две разные
+  - name: "Синхронизация из одного в два (1)"
+    source:
+      baseDir: dir1
+      path: file1.md
+    target:
+      baseDir: dir3
+      path: settings/file1-copy.md
+
+  # Вариант 3: Синхронизация файла из одной директории в две разные (второй файл)
+  - name: "Синхронизация из одного в два (2)"
+    source:
+      baseDir: dir1
+      path: file1.md
+    target:
+      baseDir: dir3
+      path: settings/file1-copy2.md
+
+  # Вариант 4: Синхронизация файлов в подкаталогах
+  - name: "Синхронизация файлов в подкаталогах"
+    source:
+      baseDir: dir1
+      path: config/file1.txt
+    target:
+      baseDir: dir3
+      path: settings/config-file.txt
+
+  # Вариант 5: Синхронизация новых файлов (которые будут созданы в процессе тестирования)
+  - name: "Синхронизация новых файлов"
+    source:
+      baseDir: dir1
+      path: new-file.json
+    target:
+      baseDir: dir2
+      path: new-file-copy.json
+
+  # Вариант 6: Двунаправленная синхронизация между dir2 и dir3
+  - name: "Двунаправленная синхронизация"
+    source:
+      baseDir: dir2
+      path: sync-test.txt
+    target:
+      baseDir: dir3
+      path: settings/sync-test.txt

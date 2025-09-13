@@ -43,6 +43,14 @@ syncPairs:
       baseDir: dir3
       path: file11.md
   
+  - name: "Документ 3"
+    source:
+      baseDir: dir1
+      path: file11.md
+    target:
+      baseDir: dir3
+      path: file11.md
+      
   - name: "Конфигурационный файл"
     source:
       baseDir: dir1
