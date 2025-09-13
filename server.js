@@ -7,7 +7,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 
 // Порт для веб-интерфейса
-const PORT = process.env.PORT || 30001;
+const PORT = process.env.PORT || 3003;
 
 // Создаем Express приложение
 const app = express();
