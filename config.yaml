@@ -5,6 +5,11 @@ baseDirs:
   dir1: ${BASE_DIR_1}
   dir2: ${BASE_DIR_2}
   dir3: ${BASE_DIR_3}
+  dir4: ${BASE_DIR_1}/../dir4
+  dir5: ${BASE_DIR_1}/../dir5
+  dir_obsidian_carl: ${BASE_DIR_OBSIDIAN_CARL}
+  dir_work_sql_kb: ${BASE_DIR_WORK_CARL}
+
 
 # Настройки chokidar
 watchOptions:
@@ -24,9 +29,41 @@ watchOptions:
   # Не завершать процесс пока активно наблюдение
   persistent: true
 
+# Пары директорий для синхронизации
+# path указывает на директорию относительно baseDir
+syncDirs:
+  - name: "Knowledge Base CARLпапоки"
+    source:
+      baseDir: dir_work_sql_kb
+      path: "/" # Путь к исходной директории
+    target:
+      baseDir: dir_obsidian_carl
+      path: "/" # Путь к целевой директории
+    syncOptions:
+      delete: true # Опция: удалять ли файлы в целевой папке, если их нет в исходной
+
+  - name: "Тест Синхронизация папок"
+    source:
+      baseDir: dir4
+      path: "/" # Путь к исходной директории
+    target:
+      baseDir: dir5
+      path: "/" # Путь к целевой директории
+    syncOptions:
+      delete: true # Опция: удалять ли файлы в целевой папке, если их нет в исходной
+
 # Пары файлов для синхронизации
 # Формат: каждая пара содержит source и target с указанием базовой директории и пути к файлу
 syncPairs:
+
+  - name: "Синхронизация 1" # Опциональное имя для логирования
+    source:
+      baseDir: dir1
+      path: file1.md
+    target:
+      baseDir: dir2
+      path: file12.md
+
   - name: "Синхронизация 2"
     source:
       baseDir: dir1
@@ -50,5 +87,4 @@ syncPairs:
     target:
       baseDir: dir3
       path: file23.md
-  
   

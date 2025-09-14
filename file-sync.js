@@ -62,8 +62,8 @@ async function copyFile(sourcePath, targetPath) {
 async function removeFile(filePath) {
   try {
     if (await fs.pathExists(filePath)) {
-      await fs.remove(filePath);
-      logger.info(`Файл удален: ${filePath}`);
+      await fs.remove(filePath); // fs.remove работает и для файлов, и для директорий
+      logger.info(`Объект удален: ${filePath}`);
       return true;
     }
     return false;
@@ -114,6 +114,69 @@ function createSyncFunction(config, pair, direction) {
       syncStatus.lastSyncTimes[pair.name || `${source.baseDir}/${source.path} <-> ${target.baseDir}/${target.path}`] = new Date();
     } finally {
       // Удаляем операцию из списка выполняемых
+      setTimeout(() => {
+        syncOperations.delete(operationId);
+      }, 1000); // Задержка для предотвращения быстрых повторных срабатываний
+    }
+  }, 500); // Задержка для дебаунсинга
+}
+
+/**
+ * Создает функцию синхронизации для пары директорий
+ * @param {Object} config - Конфигурация
+ * @param {Object} pair - Пара директорий для синхронизации
+ * @param {string} direction - Направление синхронизации ('source-to-target' или 'target-to-source')
+ * @returns {Function} - Функция синхронизации
+ */
+function createDirSyncFunction(config, pair, direction) {
+  const [source, target] = direction === 'source-to-target' 
+    ? [pair.source, pair.target] 
+    : [pair.target, pair.source];
+
+  const sourceDir = getFullPath(config, source.baseDir, source.path);
+  const targetDir = getFullPath(config, target.baseDir, target.path);
+
+  return debounce(async (event, changedPath) => {
+    // Определяем относительный путь измененного файла/директории
+    const relativePath = path.relative(sourceDir, changedPath);
+    if (relativePath.startsWith('..')) {
+      logger.warn(`Путь ${changedPath} находится вне отслеживаемой директории ${sourceDir}. Игнорируется.`);
+      return;
+    }
+    const targetPath = path.join(targetDir, relativePath);
+
+    // Создаем уникальный идентификатор операции
+    const operationId = `${changedPath}:${targetPath}`;
+    
+    // Проверяем, не выполняется ли уже такая операция
+    if (syncOperations.has(operationId)) {
+      return;
+    }
+    
+    // Добавляем операцию в список выполняемых
+    syncOperations.add(operationId);
+    
+    try {
+      // Выполняем операцию в зависимости от события
+      switch (event) {
+        case 'add':
+        case 'change':
+          await copyFile(changedPath, targetPath);
+          break;
+        case 'addDir':
+          await fs.ensureDir(targetPath);
+          logger.info(`Директория создана: ${targetPath}`);
+          break;
+        case 'unlink':
+        case 'unlinkDir':
+          await removeFile(targetPath);
+          break;
+      }
+      
+      // Обновляем время последней синхронизации
+      syncStatus.lastSyncTimes[pair.name || `${source.baseDir}/${source.path} <-> ${target.baseDir}/${target.path}`] = new Date();
+    } finally {
+      // Удаляем операцию из списка выполняемых с задержкой
       setTimeout(() => {
         syncOperations.delete(operationId);
       }, 1000); // Задержка для предотвращения быстрых повторных срабатываний
@@ -185,6 +248,55 @@ function setupFileWatchers(config, pair) {
 }
 
 /**
+ * Настраивает наблюдение за директорией
+ * @param {Object} config - Конфигурация
+ * @param {Object} pair - Пара директорий для синхронизации
+ * @returns {Object} - Объект с наблюдателями
+ */
+function setupDirWatchers(config, pair) {
+  const sourceDir = getFullPath(config, pair.source.baseDir, pair.source.path);
+  const targetDir = getFullPath(config, pair.target.baseDir, pair.target.path);
+  
+  // Создаем директории, если они не существуют
+  fs.ensureDirSync(sourceDir);
+  fs.ensureDirSync(targetDir);
+  
+  // Создаем функции синхронизации для обоих направлений
+  const syncSourceToTarget = createDirSyncFunction(config, pair, 'source-to-target');
+  const syncTargetToSource = createDirSyncFunction(config, pair, 'target-to-source');
+  
+  const commonWatchOptions = { ...config.watchOptions, ignoreInitial: false }; // ignoreInitial: false для initial sync
+
+  // Создаем наблюдателей для обоих директорий
+  const sourceWatcher = chokidar.watch(sourceDir, commonWatchOptions);
+  const targetWatcher = chokidar.watch(targetDir, commonWatchOptions);
+  
+  // Настраиваем обработчики событий
+  sourceWatcher
+    .on('all', (event, path) => {
+      logger.debug(`[${pair.name || 'Директория'}] Событие в исходной директории: ${event} - ${path}`);
+      syncSourceToTarget(event, path);
+    })
+    .on('error', (error) => {
+      logger.error(`[${pair.name || 'Директория'}] Ошибка при отслеживании исходной директории: ${error}`);
+    });
+  
+  targetWatcher
+    .on('all', (event, path) => {
+      logger.debug(`[${pair.name || 'Директория'}] Событие в целевой директории: ${event} - ${path}`);
+      syncTargetToSource(event, path);
+    })
+    .on('error', (error) => {
+      logger.error(`[${pair.name || 'Директория'}] Ошибка при отслеживании целевой директории: ${error}`);
+    });
+  
+  return {
+    sourceWatcher,
+    targetWatcher
+  };
+}
+
+/**
  * Выполняет начальную синхронизацию файлов
  * @param {Object} config - Конфигурация
  * @param {Object} pair - Пара файлов для синхронизации
@@ -235,42 +347,144 @@ async function initialSync(config, pair) {
 }
 
 /**
+ * Выполняет начальную синхронизацию директорий
+ * @param {Object} config - Конфигурация
+ * @param {Object} pair - Пара директорий для синхронизации
+ */
+async function initialDirSync(config, pair) {
+  const sourceDir = getFullPath(config, pair.source.baseDir, pair.source.path);
+  const targetDir = getFullPath(config, pair.target.baseDir, pair.target.path);
+
+  logger.info(`[${pair.name || 'Директория'}] Начальная синхронизация: ${sourceDir} <-> ${targetDir}`);
+
+  try {
+    // Синхронизируем из source в target
+    await syncDirectories(sourceDir, targetDir, pair.name, pair.syncOptions);
+    // Синхронизируем из target в source
+    await syncDirectories(targetDir, sourceDir, pair.name, pair.syncOptions);
+  } catch (error) {
+    logger.error(`Ошибка при начальной синхронизации директории ${pair.name}: ${error.message}`);
+  }
+}
+
+/**
+ * Вспомогательная функция для рекурсивной синхронизации одной директории с другой
+ * @param {string} sourceDir - Исходная директория
+ * @param {string} targetDir - Целевая директория
+ * @param {string} pairName - Имя пары для логирования
+ * @param {Object} syncOptions - Опции синхронизации
+ */
+async function syncDirectories(sourceDir, targetDir, pairName, syncOptions = {}) {
+  const sourceFiles = await fs.readdir(sourceDir);
+  const targetFiles = await fs.pathExists(targetDir) ? await fs.readdir(targetDir) : [];
+
+  // Копируем новые/измененные файлы из source в target
+  for (const file of sourceFiles) {
+    const sourcePath = path.join(sourceDir, file);
+    const targetPath = path.join(targetDir, file);
+    const sourceStats = await fs.stat(sourcePath);
+
+    if (sourceStats.isDirectory()) {
+      await syncDirectories(sourcePath, targetPath, pairName, syncOptions);
+    } else {
+      if (await fs.pathExists(targetPath)) {
+        const targetStats = await fs.stat(targetPath);
+        if (sourceStats.mtimeMs > targetStats.mtimeMs) {
+          logger.info(`[${pairName}] Исходный файл новее, копируем: ${sourcePath} -> ${targetPath}`);
+          await copyFile(sourcePath, targetPath);
+        }
+      } else {
+        logger.info(`[${pairName}] Файл не существует в цели, копируем: ${sourcePath} -> ${targetPath}`);
+        await copyFile(sourcePath, targetPath);
+      }
+    }
+  }
+
+  // Удаляем файлы из target, которых нет в source, если опция включена
+  if (syncOptions.delete) {
+    for (const file of targetFiles) {
+      const sourcePath = path.join(sourceDir, file);
+      const targetPath = path.join(targetDir, file);
+      if (!(await fs.pathExists(sourcePath))) {
+        logger.info(`[${pairName}] Файл/директория удалена из источника, удаляем в цели: ${targetPath}`);
+        await removeFile(targetPath);
+      }
+    }
+  }
+}
+
+
+/**
  * Запускает синхронизацию для всех пар файлов из конфигурации
  * @param {Object} config - Конфигурация
  * @returns {Object} - Объект с наблюдателями
  */
 function startSync(config) {
-  if (!config || !config.syncPairs || !Array.isArray(config.syncPairs)) {
-    throw new Error('Неверная конфигурация для синхронизации');
+  if (!config || (!config.syncPairs && !config.syncDirs)) {
+    throw new Error('Неверная конфигурация: отсутствуют syncPairs и syncDirs');
   }
   
   const watchers = [];
   
-  // Сохраняем только необходимые данные из конфигурации в статусе
-  // НЕ сохраняем полный объект config, чтобы избежать циклических ссылок
-  syncStatus.syncPairs = config.syncPairs.map(pair => ({
-    name: pair.name || `${pair.source.baseDir}/${pair.source.path} <-> ${pair.target.baseDir}/${pair.target.path}`,
-    source: `${pair.source.baseDir}/${pair.source.path}`,
-    target: `${pair.target.baseDir}/${pair.target.path}`
-  }));
+  // Сохраняем данные о парах в статусе
+  syncStatus.syncPairs = [];
+  if (config.syncPairs) {
+    syncStatus.syncPairs.push(...config.syncPairs.map(pair => ({
+      name: pair.name || `${pair.source.baseDir}/${pair.source.path} <-> ${pair.target.baseDir}/${target.path}`,
+      source: `${pair.source.baseDir}/${pair.source.path}`,
+      target: `${pair.target.baseDir}/${pair.target.path}`,
+      type: 'file'
+    })));
+  }
+  if (config.syncDirs) {
+    syncStatus.syncPairs.push(...config.syncDirs.map(pair => ({
+      name: pair.name || `${pair.source.baseDir}/${pair.source.path} <-> ${pair.target.baseDir}/${target.path}`,
+      source: `${pair.source.baseDir}/${pair.source.path}`,
+      target: `${pair.target.baseDir}/${pair.target.path}`,
+      type: 'dir'
+    })));
+  }
   
   // Обновляем статус
   syncStatus.isRunning = true;
   syncStatus.startTime = new Date();
   
-  // Для каждой пары файлов
-  // Сначала выполняем начальную синхронизацию для всех пар
-  const initPromises = config.syncPairs.map(pair => initialSync(config, pair));
-  
-  // Затем настраиваем наблюдателей
-  config.syncPairs.forEach(pair => {
-    const pairWatchers = setupFileWatchers(config, pair);
-    watchers.push(pairWatchers);
-  });
+  const initPromises = [];
+
+  // Начальная синхронизация и настройка наблюдателей для ФАЙЛОВ
+  if (config.syncPairs && Array.isArray(config.syncPairs)) {
+    config.syncPairs.forEach(pair => {
+      try {
+        initPromises.push(initialSync(config, pair));
+        const pairWatchers = setupFileWatchers(config, pair);
+        watchers.push(pairWatchers);
+      } catch (error) {
+        logger.error(`Ошибка при настройке синхронизации для файла "${pair.name || 'без имени'}": ${error.message}. Эта пара будет пропущена.`);
+      }
+    });
+  }
+
+  // Начальная синхронизация и настройка наблюдателей для ДИРЕКТОРИЙ
+  if (config.syncDirs && Array.isArray(config.syncDirs)) {
+    config.syncDirs.forEach(pair => {
+      try {
+        initPromises.push(initialDirSync(config, pair));
+        const pairWatchers = setupDirWatchers(config, pair);
+        watchers.push(pairWatchers);
+      } catch (error) {
+        logger.error(`Ошибка при настройке синхронизации для директории "${pair.name || 'без имени'}": ${error.message}. Эта пара будет пропущена.`);
+      }
+    });
+  }
   
   // Запускаем все промисы инициализации
   Promise.all(initPromises).then(() => {
-    logger.info('Начальная синхронизация завершена для всех пар файлов');
+    logger.info('Начальная синхронизация завершена для всех пар');
+    // После начальной синхронизации переключаем chokidar в режим ignoreInitial: true, чтобы избежать повторных событий
+    watchers.forEach(watcherGroup => {
+      if (watcherGroup.sourceWatcher) watcherGroup.sourceWatcher.options.ignoreInitial = true;
+      if (watcherGroup.targetWatcher) watcherGroup.targetWatcher.options.ignoreInitial = true;
+    });
   }).catch(error => {
     logger.error(`Ошибка при выполнении начальной синхронизации: ${error.message}`);
   });
@@ -278,7 +492,8 @@ function startSync(config) {
   // Сохраняем наблюдателей в статусе
   syncStatus.watchers = watchers;
   
-  logger.info(`Синхронизация запущена для ${config.syncPairs.length} пар файлов`);
+  const totalPairs = (config.syncPairs?.length || 0) + (config.syncDirs?.length || 0);
+  logger.info(`Синхронизация запущена для ${totalPairs} пар`);
   
   return watchers;
 }
