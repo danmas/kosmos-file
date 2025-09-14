@@ -106,7 +106,28 @@ io.on('connection', (socket) => {
   // Обработчики команд от клиента
   socket.on('restart', () => {
     logger.info('Перезапуск синхронизации через веб-интерфейс');
-    syncService.restart();
+    
+    // Перечитываем конфигурацию
+    const updatedConfig = loadConfig(configPath);
+    if (!updatedConfig) {
+      logger.error('Не удалось перезагрузить конфигурацию при перезапуске');
+      try {
+        socket.emit('status', syncService.getStatus());
+      } catch (error) {
+        logger.error(`Ошибка при отправке статуса: ${error.message}`);
+      }
+      return;
+    }
+    
+    // Выводим информацию о перезагруженной конфигурации
+    logger.info('Конфигурация перезагружена успешно:');
+    logger.info(`- Базовые директории: ${Object.keys(updatedConfig.baseDirs).length}`);
+    logger.info(`- Пары для синхронизации: ${updatedConfig.syncPairs.length}`);
+    
+    // Останавливаем текущую синхронизацию и запускаем с новой конфигурацией
+    syncService.stop();
+    syncService = initFileSync(updatedConfig);
+    
     try {
       socket.emit('status', syncService.getStatus());
     } catch (error) {
@@ -126,7 +147,28 @@ io.on('connection', (socket) => {
   
   socket.on('start', () => {
     logger.info('Запуск синхронизации через веб-интерфейс');
-    syncService.start();
+    
+    // Перечитываем конфигурацию
+    const updatedConfig = loadConfig(configPath);
+    if (!updatedConfig) {
+      logger.error('Не удалось загрузить конфигурацию при запуске');
+      try {
+        socket.emit('status', syncService.getStatus());
+      } catch (error) {
+        logger.error(`Ошибка при отправке статуса: ${error.message}`);
+      }
+      return;
+    }
+    
+    // Если сервис уже был инициализирован, но остановлен
+    if (syncService) {
+      // Останавливаем на всякий случай и инициализируем заново с новой конфигурацией
+      syncService.stop();
+      syncService = initFileSync(updatedConfig);
+    } else {
+      syncService = initFileSync(updatedConfig);
+    }
+    
     try {
       socket.emit('status', syncService.getStatus());
     } catch (error) {

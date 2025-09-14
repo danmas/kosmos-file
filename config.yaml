@@ -27,34 +27,28 @@ watchOptions:
 # Пары файлов для синхронизации
 # Формат: каждая пара содержит source и target с указанием базовой директории и пути к файлу
 syncPairs:
-  - name: "Документ 1" # Опциональное имя для логирования
+  - name: "Синхронизация 2"
+    source:
+      baseDir: dir1
+      path: file1.md
+    target:
+      baseDir: dir3
+      path: file13.md
+
+  - name: "Синхронизация 1" # Опциональное имя для логирования
     source:
       baseDir: dir1
       path: file1.md
     target:
       baseDir: dir2
-      path: file2.md
+      path: file12.md
+
+  - name: "Синхронизация 3"
+    source:
+      baseDir: dir1
+      path: file12.md
+    target:
+      baseDir: dir3
+      path: file23.md
   
-  - name: "Документ 2"
-    source:
-      baseDir: dir1
-      path: file11.md
-    target:
-      baseDir: dir3
-      path: file11.md
   
-  - name: "Документ 3"
-    source:
-      baseDir: dir1
-      path: file11.md
-    target:
-      baseDir: dir3
-      path: file11.md
-      
-  - name: "Конфигурационный файл"
-    source:
-      baseDir: dir1
-      path: config/settings.json
-    target:
-      baseDir: dir3
-      path: settings/app-config.json
