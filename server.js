@@ -73,6 +73,7 @@ try {
 
 // Настраиваем статические файлы для веб-интерфейса
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.json()); // Для обработки JSON-запросов
 
 // Главная страница
 app.get('/', (req, res) => {
@@ -89,6 +90,55 @@ app.get('/api/logs', (req, res) => {
   const limit = parseInt(req.query.limit) || 100;
   const level = req.query.level || null;
   res.json(logger.getLogs(limit, level));
+});
+
+// Определяем путь к файлу конфигурации
+const getConfigFilePath = () => {
+  // `configPath` определяется при запуске из аргументов командной строки
+  if (configPath) return configPath;
+  if (process.env.CONFIG_PATH) return path.resolve(process.env.CONFIG_PATH);
+  return path.join(__dirname, 'config.yaml');
+};
+
+// API для получения конфигурации
+app.get('/api/config', async (req, res) => {
+  try {
+    const configFilePath = getConfigFilePath();
+    if (!await fs.pathExists(configFilePath)) {
+      return res.status(404).send({ error: 'Файл конфигурации не найден.' });
+    }
+    const configContent = await fs.readFile(configFilePath, 'utf-8');
+    res.send({ config: configContent });
+  } catch (error) {
+    logger.error(`Ошибка при чтении файла конфигурации: ${error.message}`);
+    res.status(500).send({ error: 'Не удалось прочитать файл конфигурации.' });
+  }
+});
+
+// API для сохранения конфигурации
+app.post('/api/config', async (req, res) => {
+  const { config: newConfigContent } = req.body;
+  if (typeof newConfigContent !== 'string') {
+    return res.status(400).send({ error: 'Отсутствует или неверный формат содержимого конфигурации.' });
+  }
+
+  const configFilePath = getConfigFilePath();
+  try {
+    // Создаем резервную копию на всякий случай
+    if (await fs.pathExists(configFilePath)) {
+      await fs.copy(configFilePath, `${configFilePath}.bak`);
+      logger.info(`Создана резервная копия конфигурации: ${configFilePath}.bak`);
+    }
+
+    // Записываем новую конфигурацию
+    await fs.writeFile(configFilePath, newConfigContent, 'utf-8');
+    logger.info('Файл конфигурации успешно обновлен.');
+
+    res.send({ message: 'Конфигурация сохранена. Перезапустите сервис, чтобы применить изменения.' });
+  } catch (error) {
+    logger.error(`Ошибка при сохранении файла конфигурации: ${error.message}`);
+    res.status(500).send({ error: 'Не удалось сохранить файл конфигурации.' });
+  }
 });
 
 // Настраиваем WebSocket для обновления данных в реальном времени
