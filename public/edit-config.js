@@ -1,4 +1,54 @@
+// Функция для управления темой
+function initTheme() {
+    const themeToggle = document.getElementById('theme-toggle');
+    const themeIcon = document.getElementById('theme-icon');
+    const themeText = document.getElementById('theme-text');
+    
+    // Получаем сохраненную тему или используем светлую по умолчанию
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    
+    // Применяем сохраненную тему
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    updateThemeUI(savedTheme, themeIcon, themeText);
+    
+    // Обработчик переключения темы
+    themeToggle.addEventListener('click', () => {
+        const currentTheme = document.documentElement.getAttribute('data-theme');
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        
+        document.documentElement.setAttribute('data-theme', newTheme);
+        localStorage.setItem('theme', newTheme);
+        updateThemeUI(newTheme, themeIcon, themeText);
+        
+        // Обновляем тему CodeMirror если редактор уже инициализирован
+        if (window.editor) {
+            window.editor.setOption('theme', newTheme === 'dark' ? 'default' : 'default');
+        }
+    });
+    
+    // Обработчик клавиши Enter для доступности
+    themeToggle.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            themeToggle.click();
+        }
+    });
+}
+
+// Функция обновления UI переключателя темы
+function updateThemeUI(theme, themeIcon, themeText) {
+    if (theme === 'dark') {
+        themeIcon.className = 'bi bi-moon-fill theme-toggle-icon';
+        themeText.textContent = 'Темная';
+    } else {
+        themeIcon.className = 'bi bi-sun-fill theme-toggle-icon';
+        themeText.textContent = 'Светлая';
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+    // Инициализируем тему
+    initTheme();
+    
     // DOM элементы
     const saveButton = document.getElementById('btn-save');
     const toastElement = document.getElementById('liveToast');
@@ -110,6 +160,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         editor.setSize('100%', '100%');
         configContent = content;
+        
+        // Сохраняем редактор в глобальной переменной для доступа из функции темы
+        window.editor = editor;
         
         // Создаем дерево навигации
         createTreeFromYaml(content);

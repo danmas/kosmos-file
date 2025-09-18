@@ -296,5 +296,50 @@ function init() {
     setInterval(fetchStatus, 10000);
 }
 
+// Функция для управления темой
+function initTheme() {
+    const themeToggle = document.getElementById('theme-toggle');
+    const themeIcon = document.getElementById('theme-icon');
+    const themeText = document.getElementById('theme-text');
+    
+    // Получаем сохраненную тему или используем светлую по умолчанию
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    
+    // Применяем сохраненную тему
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    updateThemeUI(savedTheme, themeIcon, themeText);
+    
+    // Обработчик переключения темы
+    themeToggle.addEventListener('click', () => {
+        const currentTheme = document.documentElement.getAttribute('data-theme');
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        
+        document.documentElement.setAttribute('data-theme', newTheme);
+        localStorage.setItem('theme', newTheme);
+        updateThemeUI(newTheme, themeIcon, themeText);
+    });
+    
+    // Обработчик клавиши Enter для доступности
+    themeToggle.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            themeToggle.click();
+        }
+    });
+}
+
+// Функция обновления UI переключателя темы
+function updateThemeUI(theme, themeIcon, themeText) {
+    if (theme === 'dark') {
+        themeIcon.className = 'bi bi-moon-fill theme-toggle-icon';
+        themeText.textContent = 'Темная';
+    } else {
+        themeIcon.className = 'bi bi-sun-fill theme-toggle-icon';
+        themeText.textContent = 'Светлая';
+    }
+}
+
 // Запускаем инициализацию при загрузке страницы
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => {
+    initTheme();
+    init();
+});
