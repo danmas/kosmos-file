@@ -1,6 +1,8 @@
 # Зависимости
 node_modules/
 package-lock.json
+config.yaml
+config.yaml.bak
 
 # Переменные окружения
 .env

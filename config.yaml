@@ -9,7 +9,8 @@ baseDirs:
   dir5: ${BASE_DIR_1}/../dir5
   dir_obsidian_carl: ${BASE_DIR_OBSIDIAN_CARL}
   dir_work_sql_kb: ${BASE_DIR_WORK_CARL}
-
+  dir_obsidian_erw_work: C:/ERV/sync_data/erv_work
+  dir_work_projects: C:/ERV/projects-ex
 
 # Настройки chokidar
 watchOptions:
@@ -39,6 +40,34 @@ syncDirs:
     target:
       baseDir: dir_obsidian_carl
       path: "/" # Путь к целевой директории
+    syncOptions:
+      delete: true # Опция: удалять ли файлы в целевой папке, если их нет в исходной
+
+  - name: "Knowledge Base Kosmos-panel"
+    source:
+      baseDir: dir_work_projects
+      path: "/kosmos-panel/KB/" # Путь к исходной директории
+    target:
+      baseDir: dir_obsidian_erw_work
+      path: "/Kosmos/kosmos-panel/KB/" # Путь к целевой директории
+    syncOptions:
+      delete: true # Опция: удалять ли файлы в целевой папке, если их нет в исходной
+  - name: "Knowledge Base aian-model"
+    source:
+      baseDir: dir_work_projects
+      path: "/aian-model/KB/" # Путь к исходной директории
+    target:
+      baseDir: dir_obsidian_erw_work
+      path: "/Kosmos/aian-model/KB/" # Путь к целевой директории
+    syncOptions:
+      delete: true # Опция: удалять ли файлы в целевой папке, если их нет в исходной
+  - name: "Knowledge Base aian-vector"
+    source:
+      baseDir: dir_work_projects
+      path: "/aian-vector/KB/" # Путь к исходной директории
+    target:
+      baseDir: dir_obsidian_erw_work
+      path: "/Kosmos/aian-vector/KB/" # Путь к целевой директории
     syncOptions:
       delete: true # Опция: удалять ли файлы в целевой папке, если их нет в исходной
 
