@@ -4,9 +4,9 @@
 baseDirs:
   dir1: ${BASE_DIR_1}
   dir2: ${BASE_DIR_2}
-  # dir3: ${BASE_DIR_3}
-  # dir4: ${BASE_DIR_1}/../dir4
-  # dir5: ${BASE_DIR_1}/../dir5
+  dir3: ${BASE_DIR_3}
+  dir4: ${BASE_DIR_1}/../dir4
+  dir5: ${BASE_DIR_1}/../dir5
   dir_obsidian_carl: ${BASE_DIR_OBSIDIAN_CARL}
   dir_work_sql_kb: ${BASE_DIR_WORK_CARL}
   dir_obsidian_erw_work: C:/ERV/sync_data/erv_work
@@ -52,7 +52,6 @@ syncDirs:
       path: "/Kosmos/kosmos-panel/KB/" # Путь к целевой директории
     syncOptions:
       delete: true # Опция: удалять ли файлы в целевой папке, если их нет в исходной
-
   - name: "Knowledge Base aian-model"
     source:
       baseDir: dir_work_projects
@@ -62,17 +61,15 @@ syncDirs:
       path: "/Kosmos/aian-model/KB/" # Путь к целевой директории
     syncOptions:
       delete: true # Опция: удалять ли файлы в целевой папке, если их нет в исходной
-
-  - name: "erv-obsidian-agi AGI-Tasks"
+  - name: "Knowledge Base erv-obsidian-agi"
     source:
       baseDir: dir_work_projects
-      path: "/erv-obsidian-agi/tests/AGI-Tasks/" # Путь к исходной директории
+      path: "/erv-obsidian-agi/KB/" # Путь к исходной директории
     target:
       baseDir: dir_obsidian_erw_work
-      path: "/AGI-Tasks/" # Путь к целевой директории
+      path: "/Kosmos/erv-obsidian-agi/KB/" # Путь к целевой директории
     syncOptions:
       delete: true # Опция: удалять ли файлы в целевой папке, если их нет в исходной
-
   - name: "Knowledge Base aian-vector"
     source:
       baseDir: dir_work_projects
@@ -83,14 +80,49 @@ syncDirs:
     syncOptions:
       delete: true # Опция: удалять ли файлы в целевой папке, если их нет в исходной
 
+  - name: "Тест Синхронизация папок"
+    source:
+      baseDir: dir4
+      path: "/" # Путь к исходной директории
+    target:
+      baseDir: dir5
+      path: "/" # Путь к целевой директории
+    syncOptions:
+      delete: true # Опция: удалять ли файлы в целевой папке, если их нет в исходной
+
 # Пары файлов для синхронизации
 # Формат: каждая пара содержит source и target с указанием базовой директории и пути к файлу
-# syncPairs:
-#   - name: "Синхронизация 1" # Опциональное имя для логирования
-#     source:
-#       baseDir: dir1
-#       path: file1.md
-#     target:
-#       baseDir: dir2
-#       path: file12.md
+syncPairs:
 
+  - name: "Синхронизация 1" # Опциональное имя для логирования
+    source:
+      baseDir: dir1
+      path: file1.md
+    target:
+      baseDir: dir2
+      path: file12.md
+
+  - name: "Синхронизация 2"
+    source:
+      baseDir: dir1
+      path: file1.md
+    target:
+      baseDir: dir3
+      path: file13.md
+
+  - name: "Синхронизация 1" # Опциональное имя для логирования
+    source:
+      baseDir: dir1
+      path: file1.md
+    target:
+      baseDir: dir2
+      path: file12.md
+
+  - name: "Синхронизация 3"
+    source:
+      baseDir: dir1
+      path: file12.md
+    target:
+      baseDir: dir3
+      path: file23.md
+  

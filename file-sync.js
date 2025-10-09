@@ -420,8 +420,16 @@ async function syncDirectories(sourceDir, targetDir, pairName, syncOptions = {})
  * @returns {Object} - Объект с наблюдателями
  */
 function startSync(config) {
-  if (!config || (!config.syncPairs && !config.syncDirs)) {
-    throw new Error('Неверная конфигурация: отсутствуют syncPairs и syncDirs');
+  if (!config) {
+    throw new Error('Конфигурация не предоставлена');
+  }
+  
+  // Проверяем наличие хотя бы одной из секций
+  const hasSyncPairs = config.syncPairs && Array.isArray(config.syncPairs) && config.syncPairs.length > 0;
+  const hasSyncDirs = config.syncDirs && Array.isArray(config.syncDirs) && config.syncDirs.length > 0;
+  
+  if (!hasSyncPairs && !hasSyncDirs) {
+    logger.warn('В конфигурации отсутствуют пары для синхронизации (syncPairs и syncDirs пустые или отсутствуют)');
   }
   
   const watchers = [];
@@ -493,7 +501,11 @@ function startSync(config) {
   syncStatus.watchers = watchers;
   
   const totalPairs = (config.syncPairs?.length || 0) + (config.syncDirs?.length || 0);
-  logger.info(`Синхронизация запущена для ${totalPairs} пар`);
+  if (totalPairs > 0) {
+    logger.info(`Синхронизация запущена для ${totalPairs} пар`);
+  } else {
+    logger.warn('Синхронизация запущена, но не настроено ни одной пары для синхронизации');
+  }
   
   return watchers;
 }

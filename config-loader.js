@@ -64,8 +64,10 @@ function validateConfig(config) {
   
   // Проверка наличия необходимых разделов
   if (!config.baseDirs) errors.push('Отсутствует секция baseDirs');
-  if (!config.syncPairs || !Array.isArray(config.syncPairs) || config.syncPairs.length === 0) {
-    errors.push('Отсутствуют или неверно заданы пары для синхронизации (syncPairs)');
+  
+  // Проверка syncPairs: если есть, то должен быть массивом
+  if (config.syncPairs && !Array.isArray(config.syncPairs)) {
+    errors.push('syncPairs должен быть массивом');
   }
   
   // Проверка базовых директорий
@@ -79,7 +81,7 @@ function validateConfig(config) {
     }
   }
   
-  // Проверка пар синхронизации
+  // Проверка пар синхронизации (только если они есть)
   if (config.syncPairs && Array.isArray(config.syncPairs)) {
     config.syncPairs.forEach((pair, index) => {
       if (!pair.source || !pair.target) {

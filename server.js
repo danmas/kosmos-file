@@ -6,6 +6,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const fs = require('fs-extra');
+const yaml = require('js-yaml');
 
 // Порт для веб-интерфейса
 const PORT = process.env.PORT || 3003;
@@ -55,17 +56,19 @@ if (!config) {
 // Выводим информацию о загруженной конфигурации
 logger.info('Конфигурация загружена успешно:');
 logger.info(`- Базовые директории: ${Object.keys(config.baseDirs).length}`);
-logger.info(`- Пары для синхронизации: ${config.syncPairs.length}`);
+logger.info(`- Пары для синхронизации: ${config.syncPairs ? config.syncPairs.length : 0}`);
 
 // Запускаем синхронизацию
 let syncService = null;
 try {
   syncService = initFileSync(config);
   
-  // Выводим информацию о каждой паре
+// Выводим информацию о каждой паре
+if (config.syncPairs && config.syncPairs.length > 0) {
   config.syncPairs.forEach(pair => {
     logger.info(`- ${pair.name || 'Файл'}: ${pair.source.baseDir}/${pair.source.path} <-> ${pair.target.baseDir}/${pair.target.path}`);
   });
+}
 } catch (error) {
   logger.error(`Ошибка при запуске синхронизации: ${error.message}`);
   process.exit(1);
@@ -99,6 +102,185 @@ const getConfigFilePath = () => {
   if (process.env.CONFIG_PATH) return path.resolve(process.env.CONFIG_PATH);
   return path.join(__dirname, 'config.yaml');
 };
+
+// API для получения базовых директорий
+app.get('/api/basedirs', (req, res) => {
+  res.json({ baseDirs: config.baseDirs });
+});
+
+// API для получения конкретной синхронизации
+app.get('/api/sync/:index', (req, res) => {
+  if (!config.syncPairs) {
+    return res.status(404).json({ error: 'Синхронизации не настроены' });
+  }
+  const index = parseInt(req.params.index);
+  if (isNaN(index) || index < 0 || index >= config.syncPairs.length) {
+    return res.status(404).json({ error: 'Синхронизация не найдена' });
+  }
+  res.json(config.syncPairs[index]);
+});
+
+// API для обновления синхронизации
+app.post('/api/sync/:index', async (req, res) => {
+  if (!config.syncPairs) {
+    return res.status(404).json({ error: 'Синхронизации не настроены' });
+  }
+  const index = parseInt(req.params.index);
+  if (isNaN(index) || index < 0 || index >= config.syncPairs.length) {
+    return res.status(404).json({ error: 'Синхронизация не найдена' });
+  }
+
+  const syncData = req.body;
+  if (!syncData.name || !syncData.source || !syncData.target) {
+    return res.status(400).json({ error: 'Неверный формат данных синхронизации' });
+  }
+
+  try {
+    const configFilePath = getConfigFilePath();
+    
+    // Обновляем конфигурацию
+    config.syncPairs[index] = syncData;
+    
+    // Преобразуем обратно в YAML
+    const newConfigYaml = yaml.dump({
+      baseDirs: config.baseDirs,
+      syncPairs: config.syncPairs
+    }, { indent: 2, lineWidth: -1 });
+    
+    // Создаем резервную копию
+    await fs.copy(configFilePath, `${configFilePath}.bak`);
+    
+    // Сохраняем
+    await fs.writeFile(configFilePath, newConfigYaml, 'utf-8');
+    logger.info(`Синхронизация "${syncData.name}" обновлена`);
+    
+    res.json({ message: 'Синхронизация обновлена. Перезапустите сервис для применения изменений.' });
+  } catch (error) {
+    logger.error(`Ошибка обновления синхронизации: ${error.message}`);
+    res.status(500).json({ error: 'Ошибка сохранения синхронизации' });
+  }
+});
+
+// API для создания новой синхронизации
+app.post('/api/sync/new', async (req, res) => {
+  // Инициализируем массив syncPairs, если он не существует
+  if (!config.syncPairs) {
+    config.syncPairs = [];
+  }
+
+  const syncData = req.body;
+  if (!syncData.name || !syncData.source || !syncData.target) {
+    return res.status(400).json({ error: 'Неверный формат данных синхронизации' });
+  }
+
+  try {
+    // Читаем текущую конфигурацию
+    const configFilePath = getConfigFilePath();
+    
+    // Добавляем новую синхронизацию
+    config.syncPairs.push(syncData);
+    
+    // Преобразуем обратно в YAML
+    const newConfigYaml = yaml.dump({
+      baseDirs: config.baseDirs,
+      syncPairs: config.syncPairs
+    }, { indent: 2, lineWidth: -1 });
+    
+    // Создаем резервную копию
+    await fs.copy(configFilePath, `${configFilePath}.bak`);
+    
+    // Сохраняем
+    await fs.writeFile(configFilePath, newConfigYaml, 'utf-8');
+    logger.info(`Создана новая синхронизация "${syncData.name}"`);
+    
+    res.json({ message: 'Синхронизация создана. Перезапустите сервис для применения изменений.' });
+  } catch (error) {
+    logger.error(`Ошибка создания синхронизации: ${error.message}`);
+    res.status(500).json({ error: 'Ошибка создания синхронизации' });
+  }
+});
+
+// API для удаления синхронизации
+app.delete('/api/sync/:index', async (req, res) => {
+  if (!config.syncPairs) {
+    return res.status(404).json({ error: 'Синхронизации не настроены' });
+  }
+  const index = parseInt(req.params.index);
+  if (isNaN(index) || index < 0 || index >= config.syncPairs.length) {
+    return res.status(404).json({ error: 'Синхронизация не найдена' });
+  }
+
+  try {
+    const configFilePath = getConfigFilePath();
+    const deletedName = config.syncPairs[index].name;
+    
+    // Удаляем синхронизацию
+    config.syncPairs.splice(index, 1);
+    
+    // Преобразуем обратно в YAML
+    const newConfigYaml = yaml.dump({
+      baseDirs: config.baseDirs,
+      syncPairs: config.syncPairs
+    }, { indent: 2, lineWidth: -1 });
+    
+    // Создаем резервную копию
+    await fs.copy(configFilePath, `${configFilePath}.bak`);
+    
+    // Сохраняем
+    await fs.writeFile(configFilePath, newConfigYaml, 'utf-8');
+    logger.info(`Синхронизация "${deletedName}" удалена`);
+    
+    res.json({ message: 'Синхронизация удалена. Перезапустите сервис для применения изменений.' });
+  } catch (error) {
+    logger.error(`Ошибка удаления синхронизации: ${error.message}`);
+    res.status(500).json({ error: 'Ошибка удаления синхронизации' });
+  }
+});
+
+// API для просмотра файлов и папок
+app.get('/api/browse', async (req, res) => {
+  const { basedir, path: relativePath } = req.query;
+  
+  if (!basedir || !config.baseDirs[basedir]) {
+    return res.status(400).json({ error: 'Неверная базовая директория' });
+  }
+  
+  try {
+    const basePath = config.baseDirs[basedir];
+    const fullPath = path.join(basePath, relativePath || '/');
+    
+    // Проверяем существование пути
+    if (!await fs.pathExists(fullPath)) {
+      return res.status(404).json({ error: 'Путь не найден' });
+    }
+    
+    // Читаем содержимое директории
+    const items = await fs.readdir(fullPath);
+    const itemsWithType = await Promise.all(
+      items.map(async (item) => {
+        const itemPath = path.join(fullPath, item);
+        const stat = await fs.stat(itemPath);
+        return {
+          name: item,
+          type: stat.isDirectory() ? 'directory' : 'file'
+        };
+      })
+    );
+    
+    // Сортируем: сначала директории, потом файлы
+    itemsWithType.sort((a, b) => {
+      if (a.type === b.type) {
+        return a.name.localeCompare(b.name);
+      }
+      return a.type === 'directory' ? -1 : 1;
+    });
+    
+    res.json({ items: itemsWithType });
+  } catch (error) {
+    logger.error(`Ошибка просмотра пути: ${error.message}`);
+    res.status(500).json({ error: 'Ошибка чтения директории' });
+  }
+});
 
 // API для получения конфигурации
 app.get('/api/config', async (req, res) => {
@@ -172,7 +354,7 @@ io.on('connection', (socket) => {
     // Выводим информацию о перезагруженной конфигурации
     logger.info('Конфигурация перезагружена успешно:');
     logger.info(`- Базовые директории: ${Object.keys(updatedConfig.baseDirs).length}`);
-    logger.info(`- Пары для синхронизации: ${updatedConfig.syncPairs.length}`);
+    logger.info(`- Пары для синхронизации: ${updatedConfig.syncPairs ? updatedConfig.syncPairs.length : 0}`);
     
     // Останавливаем текущую синхронизацию и запускаем с новой конфигурацией
     syncService.stop();

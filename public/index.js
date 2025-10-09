@@ -15,6 +15,7 @@ const btnStop = document.getElementById('btn-stop');
 const btnRestart = document.getElementById('btn-restart');
 const btnClearLogs = document.getElementById('btn-clear-logs');
 const btnRefreshLogs = document.getElementById('btn-refresh-logs');
+const btnAddSync = document.getElementById('btn-add-sync');
 
 // Форматирование времени
 function formatTime(seconds) {
@@ -89,10 +90,11 @@ function updateStatus(status) {
         row.innerHTML = '<td colspan="2" class="text-center">Нет синхронизируемых файлов</td>';
         syncPairsList.appendChild(row);
     } else {
-        syncPairs.forEach(pair => {
+        syncPairs.forEach((pair, index) => {
             if (!pair) return; // Пропускаем пустые элементы
             
             const row = document.createElement('tr');
+            row.style.cursor = 'pointer';
             const lastSyncTime = status.lastSyncTimes && pair.name ? 
                 status.lastSyncTimes[pair.name] || null : null;
             
@@ -109,6 +111,11 @@ function updateStatus(status) {
                     <div class="last-sync-time">${formatDateTime(lastSyncTime)}</div>
                 </td>
             `;
+            
+            // Добавляем обработчик клика для редактирования
+            row.addEventListener('click', () => {
+                window.location.href = `/edit-sync.html?index=${index}`;
+            });
             
             syncPairsList.appendChild(row);
         });
@@ -290,6 +297,11 @@ function init() {
     // Обработчик изменения уровня логов
     logLevel.addEventListener('change', () => {
         fetchLogs();
+    });
+    
+    // Обработчик кнопки добавления синхронизации
+    btnAddSync.addEventListener('click', () => {
+        window.location.href = '/edit-sync.html?index=new';
     });
     
     // Обновляем статус каждые 10 секунд
